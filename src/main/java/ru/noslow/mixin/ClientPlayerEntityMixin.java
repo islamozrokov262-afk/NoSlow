@@ -26,10 +26,10 @@ public abstract class ClientPlayerEntityMixin {
         }
     }
 
-    // Прямой перехват замедления при движении (как в Releon)
     @Redirect(method = "applyMovementSpeedFactors", at = @At(value = "INVOKE", target = "Lnet/minecraft/util/math/Vec2f;multiply(F)Lnet/minecraft/util/math/Vec2f;", ordinal = 1))
     private Vec2f onApplyMovementSpeedFactors(Vec2f vec, float multiplier) {
-        if (NoSlowMod.noSlow != null && NoSlowMod.noSlow.shouldApplyNoSlow((ClientPlayerEntity)(Object)this) && this.isUsingItem()) {
+        ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
+        if (NoSlowMod.noSlow != null && NoSlowMod.noSlow.shouldApplyNoSlow(player) && player.isUsingItem()) {
             return vec.multiply(1.0F);
         }
         return vec.multiply(multiplier);
