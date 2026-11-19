@@ -1,11 +1,12 @@
 package ru.noslow.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.util.math.Vec2f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import ru.noslow.NoSlowMod;
 
@@ -26,12 +27,13 @@ public abstract class ClientPlayerEntityMixin {
         }
     }
 
-    @Redirect(method = "applyMovementSpeedFactors", at = @At(value = "INVOKE", target = "Lnet/minecraft/util/math/Vec2f;multiply(F)Lnet/minecraft/util/math/Vec2f;", ordinal = 1))
-    private Vec2f onApplyMovementSpeedFactors(Vec2f vec, float multiplier) {
+    // Используем WrapOperation вместо Redirect, чтобы не конфликтовать с другими модами
+    @WrapOperation(method = "applyMovementSpeedFactors", at = @At(value = "INVOKE", target = "Lnet/minecraft/util/math/Vec2f;multiply(F)Lnet/minecraft/util/math/Vec2f;", ordinal = 1))
+    private Vec2f onApplyMovementSpeedFactors(Vec2f instance, float multiplier, Operation<Vec2f> original) {
         ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
         if (NoSlowMod.noSlow != null && NoSlowMod.noSlow.shouldApplyNoSlow(player) && player.isUsingItem()) {
-            return vec.multiply(1.0F);
+            return original.call(instance, 1.0F);
         }
-        return vec.multiply(multiplier);
+        return original.call(instance, multiplier);
     }
 }
