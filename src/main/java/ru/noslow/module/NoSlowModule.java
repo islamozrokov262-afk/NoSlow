@@ -9,7 +9,6 @@ import net.minecraft.component.type.ConsumableComponent;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.item.CrossbowItem;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.consume.UseAction;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.c2s.common.CommonPongC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
@@ -136,23 +135,23 @@ public class NoSlowModule {
                 if (groundedMainHandSession) {
                     if (groundedMainHandPongStartedAt != 0L && System.nanoTime() - groundedMainHandPongStartedAt >= 2500000000L) {
                         J(true);
-                        return true;
+                        return false; // ИСПРАВЛЕНО: пропускаем пакет, а не дропаем
                     }
                     if (!groundedMainHandWindow.Y(pong.getParameter())) {
-                        return true;
+                        return false; // ИСПРАВЛЕНО: пропускаем пакет, а не дропаем
                     }
                     if (groundedPongs.isEmpty()) {
                         groundedMainHandPongStartedAt = System.nanoTime();
                     }
                 }
                 groundedPongs.addLast(pong);
-                return true;
+                return true; // Задерживаем только если окно совпало
             }
 
             if (packet instanceof PlayerInteractItemC2SPacket use) {
                 if (groundedPhase != GroundedPhase.IDLE) {
                     if (groundedPhase != GroundedPhase.USING || use.getHand() != groundedUseHand) {
-                        return true;
+                        return true; // Отменяем клик, пока идет обход
                     } else if (groundedMainHandSession) {
                         tn();
                         groundedMainHandWindow.reset();
@@ -181,7 +180,7 @@ public class NoSlowModule {
                 groundedStartedAt = System.nanoTime();
                 groundedContinuation.reset();
                 groundedPhase = GroundedPhase.WAIT_START;
-                return true;
+                return true; // Отменяем оригинальный клик, начинаем обход
             } else {
                 if (packet instanceof PlayerActionC2SPacket action && groundedPhase != GroundedPhase.IDLE) {
                     if (action.getAction() == PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND) {
@@ -206,6 +205,20 @@ public class NoSlowModule {
         if (mc.options == null || !mc.options.useKey.isPressed()) {
             groundedWaitForRelease = false;
         }
+
+        // ИСПРАВЛЕНО: Вернул логику InputEvent (подготовка к обходу)
+        if (groundedMainHandSession && groundedPhase == GroundedPhase.WAIT_START) {
+            if (tk() && tm() && mc.interactionManager != null && mc.currentScreen == null
+                    && mc.options.useKey.isPressed() && groundedPlayer.isAlive() && !groundedPlayer.hasVehicle()
+                    && groundedPlayer.getInventory().getSelectedSlot() == groundedSlot) {
+                if (groundedMainHandPreparedAtTick < 0L) {
+                    groundedMainHandPreparedAtTick = groundedTick;
+                }
+            } else {
+                J(true);
+            }
+        }
+
         if (groundedPhase != GroundedPhase.IDLE) {
             if (!tm()) {
                 to();
