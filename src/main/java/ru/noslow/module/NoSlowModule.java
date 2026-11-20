@@ -24,8 +24,7 @@ import java.util.ArrayDeque;
 
 public class NoSlowModule {
     private final MinecraftClient mc = MinecraftClient.getInstance();
-    public String itemMode = "Speed"; 
-    public double speedVelocity = 0.28; // Сила ускорения
+    public String itemMode = "ReallyWorld"; // Дефолтный режим
 
     private int ticks;
     private int cycleCounter;
@@ -99,7 +98,7 @@ public class NoSlowModule {
             }
         } else if (itemMode.equals("Old Grim")) {
             cancelSlowThisTick = true;
-        } else { // All Servers / Speed
+        } else { // All Servers
             if (client.player.getActiveHand() != Hand.MAIN_HAND && client.player.getActiveHand() != Hand.OFF_HAND) {
                 ticks = 0;
             } else {
@@ -113,8 +112,8 @@ public class NoSlowModule {
     public boolean shouldApplyNoSlow(ClientPlayerEntity player) {
         if (player == null || player != mc.player || !player.isUsingItem()) return false;
 
-        if (itemMode.equals("All Servers") || itemMode.equals("Speed")) {
-            return l(player) || itemMode.equals("Speed");
+        if (itemMode.equals("All Servers")) {
+            return l(player);
         }
         if (itemMode.equals("FunTime")) {
             return player.getActiveItem().getItem() instanceof CrossbowItem || !slow;
@@ -140,7 +139,7 @@ public class NoSlowModule {
     }
 
     private boolean tk() {
-        return itemMode.equals("All Servers") || itemMode.equals("Speed");
+        return itemMode.equals("All Servers");
     }
 
     public boolean onReceivePacket(Packet<?> packet) {
