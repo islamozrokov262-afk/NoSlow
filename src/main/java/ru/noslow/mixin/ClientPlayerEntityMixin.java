@@ -27,12 +27,16 @@ public abstract class ClientPlayerEntityMixin {
         }
     }
 
-    // Используем WrapOperation вместо Redirect, чтобы не конфликтовать с другими модами
     @WrapOperation(method = "applyMovementSpeedFactors", at = @At(value = "INVOKE", target = "Lnet/minecraft/util/math/Vec2f;multiply(F)Lnet/minecraft/util/math/Vec2f;", ordinal = 1))
     private Vec2f onApplyMovementSpeedFactors(Vec2f instance, float multiplier, Operation<Vec2f> original) {
         ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
         if (NoSlowMod.noSlow != null && NoSlowMod.noSlow.shouldApplyNoSlow(player) && player.isUsingItem()) {
-            return original.call(instance, 1.0F);
+            float boost = 1.0F;
+            // Если включен режим Speed, добавляем буст к множителю
+            if (NoSlowMod.noSlow.itemMode.equals("Speed")) {
+                boost += (float) NoSlowMod.noSlow.speedVelocity;
+            }
+            return original.call(instance, boost);
         }
         return original.call(instance, multiplier);
     }
