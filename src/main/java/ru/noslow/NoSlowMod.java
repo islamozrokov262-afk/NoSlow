@@ -1,8 +1,10 @@
 package ru.noslow;
 
+import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
+import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.text.Text;
 import ru.noslow.module.NoSlowModule;
@@ -28,25 +30,20 @@ public class NoSlowMod implements ClientModInitializer {
                     return 1;
                 }))
                 .then(ClientCommandManager.literal("mode")
-                    .then(ClientCommandManager.argument("mode", com.mojang.brigadier.arguments.StringArgumentType.string())
-                        .suggests((context, builder) -> {
-                            builder.suggest("All Servers");
-                            builder.suggest("ReallyWorld");
-                            builder.suggest("SpookyTime");
-                            builder.suggest("Old Grim");
-                            builder.suggest("FunTime");
-                            return builder.buildFuture();
-                        })
-                        .executes(context -> {
-                            String mode = com.mojang.brigadier.arguments.StringArgumentType.getString(context, "mode");
-                            noSlow.itemMode = mode;
-                            noSlow.reset();
-                            context.getSource().sendFeedback(Text.literal("NoSlow Mode: §e" + mode));
-                            return 1;
-                        })
-                    )
+                    .then(ClientCommandManager.literal("AllServers").executes(ctx -> setMode(ctx, "All Servers")))
+                    .then(ClientCommandManager.literal("ReallyWorld").executes(ctx -> setMode(ctx, "ReallyWorld")))
+                    .then(ClientCommandManager.literal("SpookyTime").executes(ctx -> setMode(ctx, "SpookyTime")))
+                    .then(ClientCommandManager.literal("OldGrim").executes(ctx -> setMode(ctx, "Old Grim")))
+                    .then(ClientCommandManager.literal("FunTime").executes(ctx -> setMode(ctx, "FunTime")))
                 )
             );
         });
+    }
+
+    private static int setMode(CommandContext<FabricClientCommandSource> context, String mode) {
+        noSlow.itemMode = mode;
+        noSlow.reset();
+        context.getSource().sendFeedback(Text.literal("NoSlow Mode: §e" + mode));
+        return 1;
     }
 }
