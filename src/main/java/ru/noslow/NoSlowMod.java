@@ -1,5 +1,6 @@
 package ru.noslow;
 
+import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
@@ -35,6 +36,17 @@ public class NoSlowMod implements ClientModInitializer {
                     .then(ClientCommandManager.literal("SpookyTime").executes(ctx -> setMode(ctx, "SpookyTime")))
                     .then(ClientCommandManager.literal("OldGrim").executes(ctx -> setMode(ctx, "Old Grim")))
                     .then(ClientCommandManager.literal("FunTime").executes(ctx -> setMode(ctx, "FunTime")))
+                    .then(ClientCommandManager.literal("Speed").executes(ctx -> setMode(ctx, "Speed")))
+                )
+                .then(ClientCommandManager.literal("speed")
+                    .then(ClientCommandManager.argument("value", DoubleArgumentType.doubleArg(0.0, 1.0))
+                        .executes(context -> {
+                            double val = DoubleArgumentType.getDouble(context, "value");
+                            noSlow.speedVelocity = val;
+                            context.getSource().sendFeedback(Text.literal("NoSlow Speed Boost: §e" + val));
+                            return 1;
+                        })
+                    )
                 )
             );
         });
