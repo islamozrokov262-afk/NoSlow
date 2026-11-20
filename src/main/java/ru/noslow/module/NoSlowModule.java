@@ -18,13 +18,15 @@ import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.network.packet.s2c.play.*;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
+import net.minecraft.util.math.Vec3d;
 import ru.noslow.mixin.LivingEntityAccessor;
 
 import java.util.ArrayDeque;
 
 public class NoSlowModule {
     private final MinecraftClient mc = MinecraftClient.getInstance();
-    public String itemMode = "ReallyWorld"; // Поставил по умолчанию RW, раз ты на нем тестишь
+    public String itemMode = "Speed"; // Поставил Speed по умолчанию для теста
+    public double speedVelocity = 0.28; // Сила ускорения (как в Releon)
 
     private int ticks;
     private int cycleCounter;
@@ -106,6 +108,13 @@ public class NoSlowModule {
             }
             ti();
             tl();
+            
+            // Логика ускорения для режима Speed
+            if (itemMode.equals("Speed") && client.player.isUsingItem() && speedVelocity > 0) {
+                Vec3d vel = client.player.getVelocity();
+                // Добавляем скорость по горизонтали (X и Z)
+                client.player.setVelocity(vel.x * (1.0 + speedVelocity), vel.y, vel.z * (1.0 + speedVelocity));
+            }
         }
     }
 
@@ -113,7 +122,7 @@ public class NoSlowModule {
         if (player == null || player != mc.player || !player.isUsingItem()) return false;
 
         if (itemMode.equals("All Servers") || itemMode.equals("Speed")) {
-            return l(player);
+            return l(player) || itemMode.equals("Speed"); // В режиме Speed просто отключаем замедление всегда
         }
         if (itemMode.equals("FunTime")) {
             return player.getActiveItem().getItem() instanceof CrossbowItem || !slow;
@@ -143,7 +152,6 @@ public class NoSlowModule {
     }
 
     public boolean onReceivePacket(Packet<?> packet) {
-        // Обрабатываем FunTime отдельно
         if (itemMode.equals("FunTime")) {
             if (phase >= 3 && System.currentTimeMillis() - lastUseMs < 900L) {
                 if (packet instanceof InventoryS2CPacket || packet instanceof SetPlayerInventoryS2CPacket) {
@@ -154,7 +162,6 @@ public class NoSlowModule {
             return false;
         }
 
-        // Если это не All Servers/Speed, вообще не лезем в пакеты!
         if (!tk()) return false;
 
         if (groundedMainHandSession && (packet instanceof PlayerPositionLookS2CPacket || packet instanceof PlayerRespawnS2CPacket)) {
@@ -183,7 +190,6 @@ public class NoSlowModule {
     }
 
     public boolean onSendPacket(Packet<?> packet) {
-        // Если это не All Servers/Speed, вообще не трогаем пакеты!
         if (!tk()) return false;
 
         if (groundedPhase != GroundedPhase.IDLE && !tm()) {
