@@ -24,7 +24,7 @@ import java.util.ArrayDeque;
 
 public class NoSlowModule {
     private final MinecraftClient mc = MinecraftClient.getInstance();
-    public String itemMode = "All Servers"; 
+    public String itemMode = "ReallyWorld"; // Поставил по умолчанию RW, раз ты на нем тестишь
 
     private int ticks;
     private int cycleCounter;
@@ -61,21 +61,11 @@ public class NoSlowModule {
 
     public void onTick(MinecraftClient client) {
         if (client.player == null) return;
-        
+
         if (itemMode.equals("FunTime")) {
             ae(client);
             ti();
-        } else {
-            if (client.player.getActiveHand() != Hand.MAIN_HAND && client.player.getActiveHand() != Hand.OFF_HAND) {
-                ticks = 0;
-            } else {
-                ticks++;
-            }
-            ti();
-        }
-
-        // Логика для ReallyWorld и SpookyTime
-        if (itemMode.equals("ReallyWorld") || itemMode.equals("SpookyTime")) {
+        } else if (itemMode.equals("ReallyWorld") || itemMode.equals("SpookyTime")) {
             if (!client.player.isUsingRiptide()) {
                 if (client.player.isUsingItem()) {
                     ticks++;
@@ -84,7 +74,7 @@ public class NoSlowModule {
                     cycleCounter = 0;
                 }
             }
-            
+
             if (itemMode.equals("ReallyWorld")) {
                 int[] thresholds = client.player.isJumping() ? new int[]{2, 2, 4} : new int[]{2, 3, 4};
                 int threshold = thresholds[cycleCounter % thresholds.length];
@@ -97,7 +87,7 @@ public class NoSlowModule {
                 }
             } else if (itemMode.equals("SpookyTime")) {
                 int[] thresholds = new int[]{2, 2, 3};
-                int threshold = thresholds[cycleCounter % thresholds.length];
+                int threshold = thresholds[cycleCounter % 2];
                 if (ticks >= threshold) {
                     cancelSlowThisTick = true;
                     ticks = 0;
@@ -108,15 +98,20 @@ public class NoSlowModule {
             }
         } else if (itemMode.equals("Old Grim")) {
             cancelSlowThisTick = true;
+        } else { // All Servers / Speed
+            if (client.player.getActiveHand() != Hand.MAIN_HAND && client.player.getActiveHand() != Hand.OFF_HAND) {
+                ticks = 0;
+            } else {
+                ticks++;
+            }
+            ti();
+            tl();
         }
-
-        // Основной тик для All Servers / Speed
-        tl();
     }
 
     public boolean shouldApplyNoSlow(ClientPlayerEntity player) {
         if (player == null || player != mc.player || !player.isUsingItem()) return false;
-        
+
         if (itemMode.equals("All Servers") || itemMode.equals("Speed")) {
             return l(player);
         }
@@ -124,7 +119,7 @@ public class NoSlowModule {
             return player.getActiveItem().getItem() instanceof CrossbowItem || !slow;
         }
         if (itemMode.equals("Old Grim")) {
-            return player.getOffHandStack().getUseAction() != UseAction.NONE || 
+            return player.getOffHandStack().getUseAction() != UseAction.NONE ||
                    player.getMainHandStack().getUseAction() != UseAction.NONE;
         }
         if (itemMode.equals("ReallyWorld") || itemMode.equals("SpookyTime")) {
@@ -148,6 +143,20 @@ public class NoSlowModule {
     }
 
     public boolean onReceivePacket(Packet<?> packet) {
+        // Обрабатываем FunTime отдельно
+        if (itemMode.equals("FunTime")) {
+            if (phase >= 3 && System.currentTimeMillis() - lastUseMs < 900L) {
+                if (packet instanceof InventoryS2CPacket || packet instanceof SetPlayerInventoryS2CPacket) {
+                    restoreRequested = true;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Если это не All Servers/Speed, вообще не лезем в пакеты!
+        if (!tk()) return false;
+
         if (groundedMainHandSession && (packet instanceof PlayerPositionLookS2CPacket || packet instanceof PlayerRespawnS2CPacket)) {
             J(true);
         }
@@ -170,16 +179,13 @@ public class NoSlowModule {
                 }
             }
         }
-        if (itemMode.equals("FunTime") && phase >= 3 && System.currentTimeMillis() - lastUseMs < 900L) {
-            if (packet instanceof InventoryS2CPacket || packet instanceof SetPlayerInventoryS2CPacket) {
-                restoreRequested = true;
-                return true;
-            }
-        }
         return false;
     }
 
     public boolean onSendPacket(Packet<?> packet) {
+        // Если это не All Servers/Speed, вообще не трогаем пакеты!
+        if (!tk()) return false;
+
         if (groundedPhase != GroundedPhase.IDLE && !tm()) {
             to();
         } else {
@@ -188,10 +194,10 @@ public class NoSlowModule {
                 if (groundedMainHandSession) {
                     if (groundedMainHandPongStartedAt != 0L && System.nanoTime() - groundedMainHandPongStartedAt >= 2500000000L) {
                         J(true);
-                        return false; 
+                        return false;
                     }
                     if (!groundedMainHandWindow.Y(pong.getParameter())) {
-                        return false; 
+                        return false;
                     }
                     if (groundedPongs.isEmpty()) {
                         groundedMainHandPongStartedAt = System.nanoTime();
@@ -278,7 +284,7 @@ public class NoSlowModule {
                     && mc.currentScreen == null && groundedPlayer.getInventory().getSelectedSlot() == groundedSlot
                     && (groundedMainHandPongStartedAt == 0L || System.nanoTime() - groundedMainHandPongStartedAt < 2500000000L)
                     && (groundedPhase != GroundedPhase.WAIT_START || System.nanoTime() - groundedStartedAt <= 2000000000L)) {
-                
+
                 boolean useHeld = mc.options.useKey.isPressed();
                 boolean usingSessionHand = groundedPlayer.isUsingItem() && groundedPlayer.getActiveHand() == groundedUseHand;
                 boolean canRepeat = a(groundedPlayer, g(groundedUseHand));
@@ -314,9 +320,7 @@ public class NoSlowModule {
             tg();
         } else {
             switch (phase) {
-                case 1:
-                    phase = 2;
-                    break;
+                case 1: phase = 2; break;
                 case 2:
                     te();
                     client.interactionManager.interactItem(owner, activeHand);
@@ -342,14 +346,9 @@ public class NoSlowModule {
                     client.interactionManager.interactItem(owner, otherHand);
                     phase = 7;
                     break;
-                case 7:
-                    phase = 8;
-                    break;
-                case 8:
-                    tg();
-                    break;
-                default:
-                    th();
+                case 7: phase = 8; break;
+                case 8: tg(); break;
+                default: th();
             }
         }
     }
