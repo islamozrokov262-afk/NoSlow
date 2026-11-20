@@ -9,6 +9,7 @@ import net.minecraft.component.type.ConsumableComponent;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.item.CrossbowItem;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.consume.UseAction;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.c2s.common.CommonPongC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
@@ -23,10 +24,11 @@ import java.util.ArrayDeque;
 
 public class NoSlowModule {
     private final MinecraftClient mc = MinecraftClient.getInstance();
-    private String itemMode = "All Servers"; 
+    public String itemMode = "All Servers"; 
 
     private int ticks;
     private int cycleCounter;
+    private boolean cancelSlowThisTick = false;
     private boolean forcedSprintDuringEat;
     private boolean sprintWasPressedBeforeEat;
     private int crossbowSlot = -1;
@@ -57,26 +59,78 @@ public class NoSlowModule {
     private final MainHandTransactionWindow groundedMainHandWindow = new MainHandTransactionWindow();
     private long groundedMainHandPongStartedAt;
 
-    public NoSlowModule() {
-        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.START_CLIENT_TICK.register(client -> {
-            tl();
-            if (itemMode.equals("FunTime")) {
-                ae(client);
-                ti();
-            } else if (client.player != null) {
-                if (client.player.getActiveHand() != Hand.MAIN_HAND && client.player.getActiveHand() != Hand.OFF_HAND) {
-                    ticks = 0;
-                } else {
-                    ticks++;
-                }
-                ti();
+    public void onTick(MinecraftClient client) {
+        if (client.player == null) return;
+        
+        if (itemMode.equals("FunTime")) {
+            ae(client);
+            ti();
+        } else {
+            if (client.player.getActiveHand() != Hand.MAIN_HAND && client.player.getActiveHand() != Hand.OFF_HAND) {
+                ticks = 0;
+            } else {
+                ticks++;
             }
-        });
+            ti();
+        }
+
+        // Логика для ReallyWorld и SpookyTime
+        if (itemMode.equals("ReallyWorld") || itemMode.equals("SpookyTime")) {
+            if (!client.player.isUsingRiptide()) {
+                if (client.player.isUsingItem()) {
+                    ticks++;
+                } else {
+                    ticks = 0;
+                    cycleCounter = 0;
+                }
+            }
+            
+            if (itemMode.equals("ReallyWorld")) {
+                int[] thresholds = client.player.isJumping() ? new int[]{2, 2, 4} : new int[]{2, 3, 4};
+                int threshold = thresholds[cycleCounter % thresholds.length];
+                if (ticks >= threshold) {
+                    cancelSlowThisTick = true;
+                    ticks = 0;
+                    cycleCounter++;
+                } else {
+                    cancelSlowThisTick = false;
+                }
+            } else if (itemMode.equals("SpookyTime")) {
+                int[] thresholds = new int[]{2, 2, 3};
+                int threshold = thresholds[cycleCounter % thresholds.length];
+                if (ticks >= threshold) {
+                    cancelSlowThisTick = true;
+                    ticks = 0;
+                    cycleCounter++;
+                } else {
+                    cancelSlowThisTick = false;
+                }
+            }
+        } else if (itemMode.equals("Old Grim")) {
+            cancelSlowThisTick = true;
+        }
+
+        // Основной тик для All Servers / Speed
+        tl();
     }
 
     public boolean shouldApplyNoSlow(ClientPlayerEntity player) {
-        return player != null && player == mc.player && 
-               (l(player) || itemMode.equals("FunTime") && (player.getActiveItem().getItem() instanceof CrossbowItem || !slow));
+        if (player == null || player != mc.player || !player.isUsingItem()) return false;
+        
+        if (itemMode.equals("All Servers") || itemMode.equals("Speed")) {
+            return l(player);
+        }
+        if (itemMode.equals("FunTime")) {
+            return player.getActiveItem().getItem() instanceof CrossbowItem || !slow;
+        }
+        if (itemMode.equals("Old Grim")) {
+            return player.getOffHandStack().getUseAction() != UseAction.NONE || 
+                   player.getMainHandStack().getUseAction() != UseAction.NONE;
+        }
+        if (itemMode.equals("ReallyWorld") || itemMode.equals("SpookyTime")) {
+            return cancelSlowThisTick;
+        }
+        return false;
     }
 
     private boolean l(ClientPlayerEntity player) {
@@ -86,7 +140,6 @@ public class NoSlowModule {
                 && player == groundedPlayer
                 && player.isAlive()
                 && !player.hasVehicle()
-                && player.isUsingItem()
                 && player.getActiveHand() == groundedUseHand;
     }
 
@@ -135,23 +188,23 @@ public class NoSlowModule {
                 if (groundedMainHandSession) {
                     if (groundedMainHandPongStartedAt != 0L && System.nanoTime() - groundedMainHandPongStartedAt >= 2500000000L) {
                         J(true);
-                        return false; // ИСПРАВЛЕНО: пропускаем пакет, а не дропаем
+                        return false; 
                     }
                     if (!groundedMainHandWindow.Y(pong.getParameter())) {
-                        return false; // ИСПРАВЛЕНО: пропускаем пакет, а не дропаем
+                        return false; 
                     }
                     if (groundedPongs.isEmpty()) {
                         groundedMainHandPongStartedAt = System.nanoTime();
                     }
                 }
                 groundedPongs.addLast(pong);
-                return true; // Задерживаем только если окно совпало
+                return true;
             }
 
             if (packet instanceof PlayerInteractItemC2SPacket use) {
                 if (groundedPhase != GroundedPhase.IDLE) {
                     if (groundedPhase != GroundedPhase.USING || use.getHand() != groundedUseHand) {
-                        return true; // Отменяем клик, пока идет обход
+                        return true;
                     } else if (groundedMainHandSession) {
                         tn();
                         groundedMainHandWindow.reset();
@@ -180,7 +233,7 @@ public class NoSlowModule {
                 groundedStartedAt = System.nanoTime();
                 groundedContinuation.reset();
                 groundedPhase = GroundedPhase.WAIT_START;
-                return true; // Отменяем оригинальный клик, начинаем обход
+                return true;
             } else {
                 if (packet instanceof PlayerActionC2SPacket action && groundedPhase != GroundedPhase.IDLE) {
                     if (action.getAction() == PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND) {
@@ -206,7 +259,6 @@ public class NoSlowModule {
             groundedWaitForRelease = false;
         }
 
-        // ИСПРАВЛЕНО: Вернул логику InputEvent (подготовка к обходу)
         if (groundedMainHandSession && groundedPhase == GroundedPhase.WAIT_START) {
             if (tk() && tm() && mc.interactionManager != null && mc.currentScreen == null
                     && mc.options.useKey.isPressed() && groundedPlayer.isAlive() && !groundedPlayer.hasVehicle()
@@ -388,6 +440,13 @@ public class NoSlowModule {
         groundedMainHandWindow.reset();
         groundedMainHandPreparedAtTick = -1L;
         groundedContinuation.reset();
+    }
+
+    public void reset() {
+        td();
+        ticks = 0;
+        cycleCounter = 0;
+        cancelSlowThisTick = false;
     }
 
     private enum GroundedPhase {
