@@ -31,12 +31,7 @@ public abstract class ClientPlayerEntityMixin {
     private Vec2f onApplyMovementSpeedFactors(Vec2f instance, float multiplier, Operation<Vec2f> original) {
         ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
         if (NoSlowMod.noSlow != null && NoSlowMod.noSlow.shouldApplyNoSlow(player) && player.isUsingItem()) {
-            float boost = 1.0F;
-            // Если включен режим Speed, добавляем буст к множителю
-            if (NoSlowMod.noSlow.itemMode.equals("Speed")) {
-                boost += (float) NoSlowMod.noSlow.speedVelocity;
-            }
-            return original.call(instance, boost);
+            return original.call(instance, 1.0F); // Просто убираем замедление, никаких добавок
         }
         return original.call(instance, multiplier);
     }
